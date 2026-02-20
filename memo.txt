@@ -2,3 +2,92 @@ wtml 言語
 
 新ML言語
 
+ocaml で実装
+関数型言語
+正格評価
+型推論
+シンプルなモジュール機構
+OOPはなし
+副作用を許す
+副作用の有無を明示
+lisp vm へ変換
+---
+
+# モジュール定義は module 名前
+# 使う時はシンプルに　モジュール名'.' で使う
+# import したら 'モジュール名.'が省略できる
+
+module A
+df x = 1
+module B
+df x = 2
+module Main
+A.x # 1
+B.x # 2
+import A
+x # 1
+A.x # でもいい
+
+
+# 関数定義は
+# df 名前 = 定義
+#
+# '=' がなかったら宣言
+# df 名前
+# 型宣言はつけてもいいし、なければ型推論
+# ':' 型
+
+module List
+# 宣言
+df length : 'a list -> int
+# 違う書き方
+df length (x : 'a list) : int
+
+# 定義
+df length (x : 'a list) : int =
+  if x = [] then 0
+  else 1 + length (List.tl x)
+
+# { } は複文なのであってもなくてもいい
+df length (x : 'a list) : int = {
+  if x = [] then 0
+  else 1 + length (List.tl x)
+}
+
+# match は必ず {} で囲む
+df length x =
+  match x {
+    | [] -> 0
+    | _::xs -> 1 + length xs
+  }
+
+# 本体がmatch一つの時は以下の書き方ができる
+dfn length = {
+  | [] -> 0
+  | _::xs -> 1 + length xs
+}
+dfn length : 'a list -> int = {
+  | [] -> 0
+  | _::xs -> 1 + length xs
+}
+
+# foo! 副作用あり
+# foo  副作用なし
+# foo? 副作用不明　＜　高階関数のみ
+df square x = x * x
+df printAndReturn! x = {
+  println! x
+  x
+}
+
+# mapとfは副作用があってもなくてもいい
+fn map? f? xs =
+  match xs {
+    | [] => []
+    | y :: ys => f? y :: map f? ys
+  }
+# 使い方
+map squre [1,2,3]
+map! printAndReturn! [1,2,3]
+map? someFunction? [1,2,3]
+
