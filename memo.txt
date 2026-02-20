@@ -18,9 +18,9 @@ lisp vm へ変換
 # import したら 'モジュール名.'が省略できる
 
 module A
-df x = 1
+let x = 1
 module B
-df x = 2
+let x = 2
 module Main
 A.x # 1
 B.x # 2
@@ -29,44 +29,47 @@ x # 1
 A.x # でもいい
 
 
-# 関数定義は
-# df 名前 = 定義
+# 関数定義は fn
+# fn 名前 引数 = 定義
+# 値束縛は let
+# let 名前 = 値
 #
 # '=' がなかったら宣言
-# df 名前
+# fn 名前
 # 型宣言はつけてもいいし、なければ型推論
 # ':' 型
 
 module List
 # 宣言
-df length : 'a list -> int
+fn length : 'a list -> int
 # 違う書き方
-df length (x : 'a list) : int
+fn length (x : 'a list) : int
 
 # 定義
-df length (x : 'a list) : int =
+fn length (x : 'a list) : int =
   if x = [] then 0
   else 1 + length (List.tl x)
 
-# { } は複文なのであってもなくてもいい
-df length (x : 'a list) : int = {
+# { } は複文（ブロック）。複文なら必須、単一式なら不要
+# let のスコープは囲む {} の終わりまで
+fn length (x : 'a list) : int = {
   if x = [] then 0
   else 1 + length (List.tl x)
 }
 
 # match は必ず {} で囲む
-df length x =
+fn length x =
   match x {
     | [] => 0
     | _::xs => 1 + length xs
   }
 
 # 本体がmatch一つの時は以下の書き方ができる
-dfn length = {
+fn length = {
   | [] => 0
   | _::xs => 1 + length xs
 }
-dfn length : 'a list -> int = {
+fn length : 'a list -> int = {
   | [] => 0
   | _::xs => 1 + length xs
 }
@@ -74,14 +77,14 @@ dfn length : 'a list -> int = {
 # foo! 副作用あり
 # foo  副作用なし
 # foo? 副作用不明　＜　高階関数のみ
-df square x = x * x
-df printAndReturn! x = {
+fn square x = x * x
+fn printAndReturn! x = {
   println! x
   x
 }
 
 # mapとfは副作用があってもなくてもいい
-df map? f? xs =
+fn map? f? xs =
   match xs {
     | [] => []
     | y :: ys => f? y :: map? f? ys
@@ -91,8 +94,9 @@ map square [1,2,3]
 map! printAndReturn! [1,2,3]
 map? someFunction? [1,2,3]
 
-# fn は無名関数
-df double = fn x -> x * 2
+# fn は無名関数としても使える
+# let で値に束縛する
+let double = fn x -> x * 2
 
 ---
 
@@ -104,10 +108,10 @@ df double = fn x -> x * 2
 #   ->?   副作用ポリモーフィック（引数の関数に依存）
 #
 # 型の例
-df square : int -> int
-df println! : string ->! unit
-df printAndReturn! : 'a ->! 'a
-df map? : ('a ->? 'b) -> 'a list ->? 'b list
+fn square : int -> int
+fn println! : string ->! unit
+fn printAndReturn! : 'a ->! 'a
+fn map? : ('a ->? 'b) -> 'a list ->? 'b list
 
 # サブタイピング（互換性）
 #   ->  <: ->!   純粋な関数は副作用ありの場所に渡せる
@@ -125,9 +129,82 @@ map square [1,2,3]           # square は純粋 → map も純粋
 map! println! ["a","b","c"]  # println! は副作用あり → map も副作用あり
 
 # コンパイルエラーの例
-df badPure : int -> int =
+fn badPure : int -> int =
   fn x -> {
     println! "oops"   # エラー: 純粋関数内で副作用のある関数を呼んでいる
     x
   }
+
+---
+
+# サンプルコード
+
+module List
+
+fn length : 'a list -> int
+fn head : 'a list -> 'a
+fn map? : ('a ->? 'b) -> 'a list ->? 'b list
+
+fn length = {
+  | [] => 0
+  | _ :: rest => 1 + length rest
+}
+
+fn head = {
+  | [] => error "empty list"
+  | x :: _ => x
+}
+
+fn map? f? xs =
+  match xs {
+    | [] => []
+    | y :: ys => f? y :: map? f? ys
+  }
+
+fn filter? pred? = {
+  | [] => []
+  | y :: ys =>
+    if pred? y then y :: filter? pred? ys
+    else filter? pred? ys
+}
+
+fn fold_left f acc = {
+  | [] => acc
+  | y :: ys => fold_left f (f acc y) ys
+}
+
+module Main
+
+import List
+
+fn square x = x * x
+
+fn sum xs = fold_left (fn a b -> a + b) 0 xs
+
+fn print_all! xs =
+  map! (fn x -> { println! x; x }) xs
+
+fn fizzbuzz n = {
+  fn go i =
+    if i > n then []
+    else {
+      let s =
+        match (i % 3, i % 5) {
+          | (0, 0) => "FizzBuzz"
+          | (0, _) => "Fizz"
+          | (_, 0) => "Buzz"
+          | _ => string_of_int i
+        }
+      s :: go (i + 1)
+    }
+  go 1
+}
+
+fn main! = {
+  let nums = [1, 2, 3, 4, 5]
+  let squares = map square nums
+  let total = sum squares
+  println! total
+  print_all! (fizzbuzz 15)
+}
 
