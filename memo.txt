@@ -9,7 +9,7 @@ ocaml で実装
 シンプルなモジュール機構
 OOPはなし
 副作用を許す
-副作用の有無を明示
+副作用の有無を型システムで管理
 lisp vm へ変換
 ---
 
@@ -57,18 +57,18 @@ df length (x : 'a list) : int = {
 # match は必ず {} で囲む
 df length x =
   match x {
-    | [] -> 0
-    | _::xs -> 1 + length xs
+    | [] => 0
+    | _::xs => 1 + length xs
   }
 
 # 本体がmatch一つの時は以下の書き方ができる
 dfn length = {
-  | [] -> 0
-  | _::xs -> 1 + length xs
+  | [] => 0
+  | _::xs => 1 + length xs
 }
 dfn length : 'a list -> int = {
-  | [] -> 0
-  | _::xs -> 1 + length xs
+  | [] => 0
+  | _::xs => 1 + length xs
 }
 
 # foo! 副作用あり
@@ -81,13 +81,53 @@ df printAndReturn! x = {
 }
 
 # mapとfは副作用があってもなくてもいい
-fn map? f? xs =
+df map? f? xs =
   match xs {
     | [] => []
-    | y :: ys => f? y :: map f? ys
+    | y :: ys => f? y :: map? f? ys
   }
 # 使い方
-map squre [1,2,3]
+map square [1,2,3]
 map! printAndReturn! [1,2,3]
 map? someFunction? [1,2,3]
+
+# fn は無名関数
+df double = fn x -> x * 2
+
+---
+
+# 副作用の型システム
+#
+# 関数の矢印に副作用を反映する
+#   ->    純粋な関数
+#   ->!   副作用ありの関数
+#   ->?   副作用ポリモーフィック（引数の関数に依存）
+#
+# 型の例
+df square : int -> int
+df println! : string ->! unit
+df printAndReturn! : 'a ->! 'a
+df map? : ('a ->? 'b) -> 'a list ->? 'b list
+
+# サブタイピング（互換性）
+#   ->  <: ->!   純粋な関数は副作用ありの場所に渡せる
+#   ->  <: ->?   純粋な関数は ?に渡せる → ?が純粋に解決
+#   ->! <: ->?   副作用ありも ?に渡せる → ?が副作用ありに解決
+#   ->! ≠> ->   副作用ありは純粋な場所に渡せない（コンパイルエラー）
+
+# 推論ルール
+#   本体に ! の呼び出しがある → その関数は ! が必要
+#   本体が ? の引数をそのまま渡すだけ → ? にできる
+#   副作用なし → 純粋
+
+# 呼び出し時の解決
+map square [1,2,3]           # square は純粋 → map も純粋
+map! println! ["a","b","c"]  # println! は副作用あり → map も副作用あり
+
+# コンパイルエラーの例
+df badPure : int -> int =
+  fn x -> {
+    println! "oops"   # エラー: 純粋関数内で副作用のある関数を呼んでいる
+    x
+  }
 
