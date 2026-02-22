@@ -79,17 +79,17 @@ Functions use naming suffixes and arrow types to track side effects:
 |---|---|---|
 | (none) | Pure, no side effects | `->` |
 | `!` | Has side effects | `->!` |
-| `?` | Effect-polymorphic (depends on arguments) | `->?` |
+| `~` | Effect-polymorphic (depends on arguments) | `->~` |
 
 **Subtyping rules:**
 - `->` <: `->!` — pure functions can be used where effectful ones are expected
-- `->` <: `->?` — pure resolves `?` to pure
-- `->!` <: `->?` — effectful resolves `?` to effectful
+- `->` <: `->~` — pure resolves `~` to pure
+- `->!` <: `->~` — effectful resolves `~` to effectful
 - `->!` cannot be used where `->` (pure) is expected — compile error
 
 ### Inference Rules
 - Body calls a `!` function → the function itself must be `!`
-- Body only passes `?` arguments through → can be `?`
+- Body only passes `~` arguments through → can be `~`
 - No effects → pure (`->`)
 
 ## Development Conventions
