@@ -76,7 +76,7 @@ fn length : 'a list -> int = {
 
 # foo! 副作用あり
 # foo  副作用なし
-# foo? 副作用不明　＜　高階関数のみ
+# foo~ 副作用不明　＜　高階関数のみ
 fn square x = x * x
 fn printAndReturn! x = {
   println! x
@@ -84,15 +84,15 @@ fn printAndReturn! x = {
 }
 
 # mapとfは副作用があってもなくてもいい
-fn map? f? xs =
+fn map~ f~ xs =
   match xs {
     | [] => []
-    | y :: ys => f? y :: map? f? ys
+    | y :: ys => f~ y :: map~ f~ ys
   }
 # 使い方
 map square [1,2,3]
 map! printAndReturn! [1,2,3]
-map? someFunction? [1,2,3]
+map~ someFunction~ [1,2,3]
 
 # fn は無名関数としても使える
 # let で値に束縛する
@@ -105,23 +105,23 @@ let double = fn x -> x * 2
 # 関数の矢印に副作用を反映する
 #   ->    純粋な関数
 #   ->!   副作用ありの関数
-#   ->?   副作用ポリモーフィック（引数の関数に依存）
+#   ->~   副作用ポリモーフィック（引数の関数に依存）
 #
 # 型の例
 fn square : int -> int
 fn println! : string ->! unit
 fn printAndReturn! : 'a ->! 'a
-fn map? : ('a ->? 'b) -> 'a list ->? 'b list
+fn map~ : ('a ->~ 'b) -> 'a list ->~ 'b list
 
 # サブタイピング（互換性）
 #   ->  <: ->!   純粋な関数は副作用ありの場所に渡せる
-#   ->  <: ->?   純粋な関数は ?に渡せる → ?が純粋に解決
-#   ->! <: ->?   副作用ありも ?に渡せる → ?が副作用ありに解決
+#   ->  <: ->~   純粋な関数は ~に渡せる → ~が純粋に解決
+#   ->! <: ->~   副作用ありも ~に渡せる → ~が副作用ありに解決
 #   ->! ≠> ->   副作用ありは純粋な場所に渡せない（コンパイルエラー）
 
 # 推論ルール
 #   本体に ! の呼び出しがある → その関数は ! が必要
-#   本体が ? の引数をそのまま渡すだけ → ? にできる
+#   本体が ~ の引数をそのまま渡すだけ → ~ にできる
 #   副作用なし → 純粋
 
 # 呼び出し時の解決
@@ -143,7 +143,7 @@ module List
 
 fn length : 'a list -> int
 fn head : 'a list -> 'a
-fn map? : ('a ->? 'b) -> 'a list ->? 'b list
+fn map~ : ('a ->~ 'b) -> 'a list ->~ 'b list
 
 fn length = {
   | [] => 0
@@ -155,17 +155,17 @@ fn head = {
   | x :: _ => x
 }
 
-fn map? f? xs =
+fn map~ f~ xs =
   match xs {
     | [] => []
-    | y :: ys => f? y :: map? f? ys
+    | y :: ys => f~ y :: map~ f~ ys
   }
 
-fn filter? pred? = {
+fn filter~ pred~ = {
   | [] => []
   | y :: ys =>
-    if pred? y then y :: filter? pred? ys
-    else filter? pred? ys
+    if pred~ y then y :: filter~ pred~ ys
+    else filter~ pred~ ys
 }
 
 fn fold_left f acc = {
