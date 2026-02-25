@@ -22,9 +22,9 @@ wtml では副作用を関数型の一部として追跡します。関数は接
 | `~` | `->~` | 副作用多相 — 引数に依存 |
 
 ```
-fn square x = x * x                   # 純粋
-fn println! x = ...                    # 副作用あり
-fn map~ f~ xs = ...                    # 多相: fに応じて純粋にも副作用ありにもなる
+fn square x = x * x                   // 純粋
+fn println! x = ...                    // 副作用あり
+fn map~ f~ xs = ...                    // 多相: fに応じて純粋にも副作用ありにもなる
 ```
 
 サブタイピング規則により安全性を保証します：
@@ -35,31 +35,37 @@ fn map~ f~ xs = ...                    # 多相: fに応じて純粋にも副作
 ## 構文の概要
 
 ```
-# 値束縛
+// 値束縛
 let x = 42
 
-# 関数定義
+// 関数定義
 fn add x y = x + y
 
-# 無名関数
+// 無名関数
 let double = fn x -> x * 2
 
-# 型注釈（省略可能）
+// 型注釈（省略可能）
 fn length (xs : 'a list) : int = ...
 
-# ブロック
+// ブロック
 fn foo x = {
   let y = x + 1
   y * 2
 }
 
-# パターンマッチ
+// パターンマッチ
 fn length = {
   | [] => 0
   | _ :: rest => 1 + length rest
 }
 
-# モジュール
+// デバッグ式（副作用が型に影響しない、リリースビルドで除去）
+fn square x = {
+  # println! x
+  x * x
+}
+
+// モジュール
 module List
 fn head = {
   | [] => error "empty list"

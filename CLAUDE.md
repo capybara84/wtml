@@ -70,6 +70,9 @@ The language specification is in `memo.txt`. Key design decisions:
 | Module definition | `module Name` |
 | Module import | `import Name` |
 | Module access | `Module.value` |
+| Line comment | `// comment` |
+| Block comment | `/* comment */` |
+| Debug expression | `# expr` (effect-transparent, removed in release builds) |
 
 ### Side-Effect System
 
@@ -86,6 +89,17 @@ Functions use naming suffixes and arrow types to track side effects:
 - `->` <: `->~` — pure resolves `~` to pure
 - `->!` <: `->~` — effectful resolves `~` to effectful
 - `->!` cannot be used where `->` (pure) is expected — compile error
+
+### Debug Expressions (`#`)
+
+`#` prefixes a debug expression that is effect-transparent — side effects inside `#` do not infect the enclosing function's effect type. Debug expressions are removed entirely in release builds.
+
+```
+fn square x = {
+  # println! x       // only in debug builds; square stays pure
+  x * x
+}
+```
 
 ### Inference Rules
 - Body calls a `!` function → the function itself must be `!`
