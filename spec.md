@@ -50,16 +50,22 @@ x  foo  my_value  fold_left  string_of_int
 println!  map~  printAndReturn!  filter~
 ```
 
-モジュール名および型コンストラクタ名はアルファベット大文字で始まる。
+モジュール名およびデータコンストラクタ名はアルファベット大文字で始まる。
 
 ```
-List  Main  Some  None
+List  Main  Some  None  Point
 ```
 
 型変数はシングルクォートで始まる。
 
 ```
 'a  'b  'key  'value
+```
+
+ユーザー定義の型名は通常の識別子であり、小文字で始まる。
+
+```
+option  result  point  person
 ```
 
 ### 2.4 リテラル
@@ -306,7 +312,9 @@ fn unwrap_or default_value = {
 
 fn depth = {
   | Leaf _ => 1
-  | Node left right => 1 + max (depth left) (depth right)
+  | Node left right =>
+    if depth left > depth right then 1 + depth left
+    else 1 + depth right
 }
 ```
 
@@ -406,7 +414,7 @@ let q = Geometry.Point { x = 3.0, y = 4.0 }
 ```
 fn distance_from_origin p =
   match p {
-    | Point { x, y } => sqrt (x * x + y * y)
+    | Point { x, y } => (x, y)
   }
 
 fn get_x = {
@@ -414,7 +422,7 @@ fn get_x = {
 }
 ```
 
-`Point { x, y }` は全フィールドを束縛する。`Point { x, .. }` は一部のフィールドだけを束縛し、残りを無視する。
+`Point { x, y }` は全フィールドを束縛する。`Point { x, .. }` は一部のフィールドだけを束縛し、残りを無視する。`..` を使わないレコードパターンでは、そのレコード型の全フィールドをちょうど1回ずつ列挙しなければならない。
 
 レコードパターンでは、そのレコード型に存在しないフィールド名は使えない。
 
