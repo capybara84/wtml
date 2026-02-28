@@ -67,6 +67,8 @@ List  Main  Some  None
 | 種類 | 例 |
 |---|---|
 | 整数 | `0`, `42`, `-1` |
+| 浮動小数点数 | `0.0`, `3.14`, `-1.5` |
+| 文字 | `'a'`, `'Z'`, `'\n'` |
 | 文字列 | `"hello"`, `"FizzBuzz"` |
 | ブーリアン | `true`, `false` |
 | リスト | `[]`, `[1, 2, 3]`, `["a", "b", "c"]` |
@@ -105,6 +107,8 @@ fn foo x = {
 | 型 | 説明 |
 |---|---|
 | `int` | 整数 |
+| `float` | 浮動小数点数 |
+| `char` | 文字 |
 | `string` | 文字列 |
 | `bool` | ブーリアン（`true` / `false`） |
 | `unit` | ユニット型（値は `()`） |
@@ -608,13 +612,13 @@ type        ::= base_type
 
 arrow       ::= '->' | '->!' | '->~'
 
-base_type   ::= 'int' | 'string' | 'bool' | 'unit'
+base_type   ::= 'int' | 'float' | 'char' | 'string' | 'bool' | 'unit'
 
 IDENT       ::= [a-z_][a-zA-Z0-9_]*
 IDENT_EFF   ::= IDENT ('!' | '~')?
 UIDENT      ::= [A-Z][a-zA-Z0-9_]*
 TYVAR       ::= "'" IDENT
-literal     ::= INT | STRING | 'true' | 'false' | '()'
+literal     ::= INT | FLOAT | CHAR | STRING | 'true' | 'false' | '()'
 binop       ::= '+' | '-' | '*' | '/' | '%' | '=' | '>' | '<' | '>=' | '<='
 sep         ::= NEWLINE | ';'               (* 式の区切り: 改行またはセミコロン *)
 ```
