@@ -258,11 +258,17 @@ fn map~ : ('a ->~ 'b) -> 'a list ->~ 'b list
 
 `{}` で囲まれた複数の式からなるブロック。最後の式の値がブロック全体の値になる。単一式の場合は `{}` は不要。
 
+ブロック内の式は**改行**で区切る。1行に複数の式を書く場合は**セミコロン `;`** で区切る。セミコロンと改行は同等の区切り子であり、混在も可能である。
+
 ```
+// 改行で区切る（基本）
 fn printAndReturn! x = {
   println! x
   x
 }
+
+// セミコロンで区切る（1行に複数の式を書く場合）
+fn printAndReturn! x = { println! x; x }
 ```
 
 `let` のスコープはそれを囲むブロックの終わりまでである。
@@ -563,10 +569,10 @@ expr        ::= 'let' pattern (':' type)? '=' expr
               | 'fn' param+ '->' expr
               | 'if' expr 'then' expr 'else' expr
               | 'match' expr '{' match_arm+ '}'
-              | '{' expr (';' expr)* '}'
+              | '{' expr (sep expr)* '}'
               | expr binop expr
               | '#' expr                         (* デバッグ式 *)
-              | '#' '{' expr (';' expr)* '}'    (* デバッグブロック *)
+              | '#' '{' expr (sep expr)* '}'    (* デバッグブロック *)
               | expr expr                       (* 関数適用 *)
               | expr '::' expr
               | expr ':' type
@@ -601,6 +607,7 @@ UIDENT      ::= [A-Z][a-zA-Z0-9_]*
 TYVAR       ::= "'" IDENT
 literal     ::= INT | STRING | 'true' | 'false' | '()'
 binop       ::= '+' | '-' | '*' | '/' | '%' | '=' | '>' | '<' | '>=' | '<='
+sep         ::= NEWLINE | ';'               (* 式の区切り: 改行またはセミコロン *)
 ```
 
 ## 付録B. 副作用型サブタイピングの図
