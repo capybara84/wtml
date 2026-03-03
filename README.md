@@ -1,5 +1,156 @@
 # wtml
 
+A new ML-family programming language that tracks side effects in the type system.
+
+## Features
+
+- **ML-family functional language** - no OOP, focused on functional programming
+- **Strict (eager) evaluation**
+- **Type inference** - type annotations are optional
+- **Effect tracking** - side effects are managed at the type level through function arrows (`->`, `->!`, `->~`)
+- **Simple module system** - `module`, `import`, and dot access
+- **Compiles to a Lisp VM**
+
+## Effect Type System
+
+wtml tracks side effects as part of function types. `!` and `~` are used both when defining functions and when calling them.
+
+In function definitions, the suffix indicates the nature of the function itself:
+
+| Suffix | Arrow | Meaning |
+|--------|------|------|
+| (none) | `->` | Pure - no side effects |
+| `!` | `->!` | Effectful |
+| `~` | `->~` | Effect-polymorphic - depends on call-site arguments |
+
+```
+fn square x = x * x                  // pure
+fn println! x = ...                  // effectful
+fn map~ f~ xs = ...                  // polymorphic: its effect is determined at the call site
+```
+
+Calls follow the same rules. An effect-polymorphic function such as `map~` can be called as pure when given a pure function, or as effectful when given an effectful function.
+
+```
+map square [1, 2, 3]         // pure call
+map! println! ["a", "b"]     // effectful call
+map~ f~ xs                   // effect not yet fixed
+```
+
+Safety is guaranteed by the subtyping rules:
+- Pure functions can be passed where effectful functions are expected (`->` <: `->!`)
+- Both pure and effectful functions can be passed where effect-polymorphic functions are expected (`->` <: `->~`, `->!` <: `->~`)
+- Effectful functions cannot be passed where pure functions are expected (compile error)
+
+## Syntax Overview
+
+```
+// value binding
+let x = 42
+
+// function definition
+fn add x y = x + y
+
+// anonymous function
+let double = fn x -> x * 2
+
+// type annotation (optional)
+fn length (xs : 'a list) : int = ...
+
+// block
+fn foo x = {
+  let y = x + 1
+  y * 2
+}
+
+// pattern match
+fn length = {
+  | [] => 0
+  | _ :: rest => 1 + length rest
+}
+
+// debug expression (does not affect effect types, removed in release builds)
+fn square x = {
+  # println! x
+  x * x
+}
+
+// module
+module List
+fn head = {
+  | [] => error "empty list"
+  | x :: _ => x
+}
+
+module Main
+import List
+let x = head [1, 2, 3]
+```
+
+## Example
+
+```
+module Main
+
+import List
+
+fn square x = x * x
+
+fn sum xs = fold_left (fn a b -> a + b) 0 xs
+
+fn fizzbuzz n = {
+  fn go i =
+    if i > n then []
+    else {
+      let s =
+        match (i % 3, i % 5) {
+          | (0, 0) => "FizzBuzz"
+          | (0, _) => "Fizz"
+          | (_, 0) => "Buzz"
+          | _ => string_of_int i
+        }
+      s :: go (i + 1)
+    }
+  go 1
+}
+
+fn main! = {
+  let nums = [1, 2, 3, 4, 5]
+  let squares = map square nums
+  let total = sum squares
+  println! total
+  print_all! (fizzbuzz 15)
+}
+```
+
+## Build
+
+wtml is implemented in OCaml and uses the Dune build system.
+
+```sh
+dune build    # build
+dune test     # run tests
+dune clean    # remove build artifacts
+```
+
+### Requirements
+
+- OCaml
+- Dune (>= 3.18)
+- OPAM
+
+## Status
+
+The project is in the early design and bootstrap phase. The language specification is in `spec.md`.
+
+## License
+
+MIT
+
+---
+
+# wtml
+
 副作用を型システムで追跡する、新しいML系プログラミング言語。
 
 ## 特徴

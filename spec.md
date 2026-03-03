@@ -1,3 +1,884 @@
+# wtml Language Specification
+
+Version: 0.1 (draft)
+
+## 1. Overview
+
+wtml is an ML-family functional programming language implemented in OCaml. It has the following characteristics:
+
+- Strict evaluation
+- Hindley-Milner-based type inference
+- A simple module system (no OOP)
+- A mechanism for tracking the presence of side effects in the type system
+- A Lisp VM as the compilation target
+
+## 2. Lexical Structure
+
+### 2.1 Comments
+
+Text from `//` to the end of the line is a line comment. Text enclosed by `/*` and `*/` is a block comment. Block comments can be nested.
+
+```
+// This is a comment
+let x = 1  // End-of-line comment
+
+/*
+  This is
+  a block comment
+*/
+```
+
+### 2.2 Keywords
+
+The following identifiers are reserved words and cannot be used as variable names or function names.
+
+```
+let  fn  type  match  if  then  else  with  module  import  true  false
+```
+
+### 2.3 Identifiers
+
+Regular identifiers start with a lowercase alphabetic character or underscore, and are composed of alphanumeric characters and underscores.
+
+```
+x  foo  my_value  fold_left  string_of_int
+```
+
+`!` and `~` may be appended as suffixes to indicate side effects. `#` is reserved as the prefix for debug expressions (see Section 2.5).
+
+```
+println!  map~  printAndReturn!  filter~
+```
+
+Module names and data constructor names begin with an uppercase alphabetic character.
+
+```
+List  Main  Some  None  Point
+```
+
+Type variables begin with a single quote.
+
+```
+'a  'b  'key  'value
+```
+
+User-defined type names are regular identifiers and begin with a lowercase letter.
+
+```
+option  result  point  person
+```
+
+### 2.4 Literals
+
+| Kind | Examples |
+|---|---|
+| Integer | `0`, `42`, `-1` |
+| Float | `0.0`, `3.14`, `-1.5` |
+| Character | `'a'`, `'Z'`, `'\n'` |
+| String | `"hello"`, `"FizzBuzz"` |
+| Boolean | `true`, `false` |
+| List | `[]`, `[1, 2, 3]`, `["a", "b", "c"]` |
+| Tuple | `(1, 2)`, `(i % 3, i % 5)` |
+| Unit | `()` |
+
+### 2.5 Debug Expressions
+
+`#` is the prefix for debug expressions. An expression following `#` is evaluated only in debug builds, and is removed by the compiler in release builds.
+
+Side effects inside a debug expression do not affect the type system. In other words, even if a `!` function is called inside a debug expression, the enclosing function's effect type does not change.
+
+```
+// Single expression
+fn square x = {
+  # println! x       // Printed only in debug builds. square remains pure.
+  x * x
+}
+
+// Block (multiple expressions)
+fn foo x = {
+  # {
+    println! x
+    println! "done"
+  }
+  x + 1
+}
+```
+
+The type of a debug expression is always `unit`. The value of a debug expression cannot be used in program logic.
+
+## 3. Type System
+
+### 3.1 Primitive Types
+
+| Type | Description |
+|---|---|
+| `int` | Integer |
+| `float` | Float |
+| `char` | Character |
+| `string` | String |
+| `bool` | Boolean (`true` / `false`) |
+| `unit` | Unit type (its value is `()`) |
+| `'a` | Type variable (polymorphic type) |
+
+### 3.2 Compound Types
+
+| Type Syntax | Description |
+|---|---|
+| `'a list` | List type |
+| `('a, 'b)` | Tuple type |
+| `'a -> 'b` | Pure function type |
+| `'a ->! 'b` | Effectful function type |
+| `'a ->~ 'b` | Effect-polymorphic function type |
+| `option 'a` | Variant type (user-defined) |
+| `point` | User-defined record type name |
+
+### 3.3 Type Annotations
+
+Type annotations are written using `:`. If omitted, they are determined through type inference.
+
+Record types are defined like `type point = Point { x : float, y : float }`.
+
+```
+// Type annotation on an expression
+let x : int = 42
+
+// Type annotation on a function argument
+fn length (x : 'a list) : int = ...
+
+// Function type declaration
+fn length : 'a list -> int
+```
+
+### 3.4 Effect Type System
+
+The most distinctive feature of wtml's type system is that it tracks whether functions have side effects at the type level.
+
+#### 3.4.1 Function Arrow Types
+
+There are three kinds of arrows for function types.
+
+| Arrow | Meaning | Use Case |
+|---|---|---|
+| `->` | Pure (no side effects) | Referentially transparent functions |
+| `->!` | Effectful | Functions that perform I/O, state mutation, etc. |
+| `->~` | Effect-polymorphic | Higher-order functions whose effects depend on argument functions |
+
+#### 3.4.2 Notation at Definition Time
+
+In function definitions, the function name carries a suffix indicating its kind of effect.
+
+| Suffix | Meaning | Examples |
+|---|---|---|
+| None | Pure | `square`, `length`, `sum` |
+| `!` | Effectful | `println!`, `printAndReturn!`, `main!` |
+| `~` | Effect-polymorphic | `map~`, `filter~` |
+
+The suffix must match the function's type.
+
+`~` does not mean "always effectful". A function defined with `~` may behave as either pure or effectful depending on the arguments passed at the call site.
+
+#### 3.4.3 Subtyping Rules
+
+The following subtyping relationships exist between effect types.
+
+```
+->  <:  ->!    A pure function can be passed where an effectful function is expected
+->  <:  ->~    A pure function can be passed to ~ (~ resolves as pure)
+->! <:  ->~    An effectful function can also be passed to ~ (~ resolves as effectful)
+->! ≠>  ->     An effectful function cannot be passed where a pure function is expected (compile error)
+```
+
+That is, `->~` is the least upper bound of `->` and `->!`, and `->` is the most restrictive type.
+
+#### 3.4.4 Inference Rules
+
+Function effects are inferred according to the following rules:
+
+1. If the body calls a `!` function, the function itself must be `!`
+2. If the body only forwards a `~` argument, it can be `~`
+3. If there are no effectful calls, the function is pure (`->`)
+
+#### 3.4.5 Notation and Resolution at Call Sites
+
+`!` and `~` can also be used when calling functions.
+
+- `f x` represents a pure call
+- `f! x` represents an effectful call
+- `f~ x` represents a call whose effect has not yet been fixed
+
+These are not separate function names. For example, `map`, `map!`, and `map~` refer to the same function binding defined as `map~`, but in different effect modes at the call site.
+
+An effect-polymorphic function `~` is resolved according to the effect of the function or expression passed at the call site. In other words, a function defined with `~` is instantiated as either `->` or `->!` depending on how it is used.
+
+```
+map square [1,2,3]           // square is pure, so map can be called as pure
+map! println! ["a","b","c"]  // println! is effectful, so map is called as effectful
+map~ f~ xs                   // the effect is not fixed yet at this point
+```
+
+Pure functions cannot be called with `!`, and effectful functions cannot be called without a suffix. The call-site suffix must match the actual effect type of the callee.
+
+```
+square! 3      // error: square is pure
+println "x"    // error: println! is effectful
+map! square xs // error: as long as square is passed, map resolves as pure
+```
+
+#### 3.4.6 Example of a Compile Error
+
+```
+// Error: calling an effectful function inside a pure function
+fn badPure : int -> int =
+  fn x -> {
+    println! "oops"   // compile error
+    x
+  }
+```
+
+### 3.5 Variant Types
+
+The `type` keyword defines variant types (algebraic data types). Each variant is separated by `|`, and constructor names begin with an uppercase letter.
+
+#### 3.5.1 Definitions
+
+```
+type option 'a = {
+  | Some 'a
+  | None
+}
+
+type result 'a 'e = {
+  | Ok 'a
+  | Err 'e
+}
+
+// Constructors without arguments only (enum-like)
+type color = {
+  | Red
+  | Green
+  | Blue
+}
+```
+
+#### 3.5.2 Recursive Types
+
+Variant types can be defined recursively.
+
+```
+type tree 'a = {
+  | Leaf 'a
+  | Node (tree 'a) (tree 'a)
+}
+
+type my_list 'a = {
+  | Nil
+  | Cons 'a (my_list 'a)
+}
+```
+
+#### 3.5.3 Constructor Scope
+
+Constructors belong to the scope of the module in which they are defined. To use them from another module, access them as `ModuleName.ConstructorName`. The prefix can be omitted with `import`.
+
+```
+module Option
+
+type option 'a = {
+  | Some 'a
+  | None
+}
+
+module Main
+
+// Access with module prefix
+let x = Option.Some 42
+let y = Option.None
+
+// Prefix can be omitted after import
+import Option
+let z = Some 42
+let w = None
+```
+
+#### 3.5.4 With Pattern Matching
+
+Constructors can be destructured in pattern matching (see Section 4.5.1).
+
+```
+fn unwrap_or default_value = {
+  | Some x => x
+  | None => default_value
+}
+
+fn depth = {
+  | Leaf _ => 1
+  | Node left right =>
+    if depth left > depth right then 1 + depth left
+    else 1 + depth right
+}
+```
+
+### 3.6 Record Types
+
+Record types in wtml are nominal. Type identity is determined not by field shape, but by the type definition and constructor name.
+
+A record type has one record constructor and its associated set of fields.
+
+#### 3.6.1 Definitions
+
+```
+type point = Point { x : float, y : float }
+
+type person = Person {
+  name : string,
+  age : int,
+}
+
+// Polymorphic record
+type pair 'a 'b = Pair {
+  first : 'a,
+  second : 'b,
+}
+```
+
+Trailing commas are allowed.
+
+Even if two records have the same field structure, they are different types if their type names or constructor names differ.
+
+```
+type point = Point { x : float, y : float }
+type vec2 = Vec2 { x : float, y : float }
+
+// point and vec2 are different types
+```
+
+#### 3.6.2 Record Construction
+
+Record values are created using the constructor name declared in the type definition.
+
+```
+let origin = Point { x = 0.0, y = 0.0 }
+let p = Point { x = 1.0, y = 2.0 }
+let bob = Person { name = "Bob", age = 30 }
+```
+
+Field names must match the defined fields, and each field must be provided exactly once.
+
+#### 3.6.3 Field Access
+
+Record fields are accessed with dot notation.
+
+```
+p.x       // 1.0
+p.y       // 2.0
+bob.name  // "Bob"
+```
+
+Field access is allowed only on values of record types that actually have that field.
+
+#### 3.6.4 Record Update (Functional Update)
+
+With the `with` keyword, a new record can be created by changing only part of an existing record.
+
+```
+let p2 = { p with x = 3.0 }
+// p2 = Point { x = 3.0, y = 2.0 }
+
+let older_bob = { bob with age = 31 }
+```
+
+The updated value has the same record type as the original. Only fields defined on that record type may be updated.
+
+#### 3.6.5 Constructor Scope
+
+Record constructors belong to the scope of the module in which they are defined. To use them from another module, access them as `ModuleName.ConstructorName`. The prefix can be omitted with `import`.
+
+```
+module Geometry
+
+type point = Point { x : float, y : float }
+
+module Main
+
+import Geometry
+let p = Point { x = 1.0, y = 2.0 }
+
+// Without import
+let q = Geometry.Point { x = 3.0, y = 4.0 }
+```
+
+#### 3.6.6 With Pattern Matching
+
+Records can be destructured with constructor-qualified patterns.
+
+```
+fn distance_from_origin p =
+  match p {
+    | Point { x, y } => (x, y)
+  }
+
+fn get_x = {
+  | Point { x, .. } => x
+}
+```
+
+`Point { x, y }` binds all fields. `Point { x, .. }` binds only some fields and ignores the rest. In a record pattern without `..`, all fields of that record type must be listed exactly once.
+
+Record patterns cannot use field names that do not exist on that record type.
+
+## 4. Expressions and Syntax
+
+### 4.1 Value Bindings (`let`)
+
+`let` binds a value to a name. Its scope lasts until the end of the enclosing block `{}`.
+
+```
+let x = 42
+let name = "wtml"
+let double = fn x -> x * 2
+```
+
+### 4.2 Function Definitions (`fn`)
+
+#### 4.2.1 Named Function Definitions
+
+```
+fn name args... = body
+```
+
+```
+fn square x = x * x
+
+fn add x y = x + y
+
+fn length (x : 'a list) : int =
+  if x = [] then 0
+  else 1 + length (List.tl x)
+```
+
+#### 4.2.2 Anonymous Functions (Lambda Expressions)
+
+```
+fn args... -> body
+```
+
+```
+let double = fn x -> x * 2
+let add = fn a b -> a + b
+map (fn x -> x * x) [1, 2, 3]
+```
+
+#### 4.2.3 Function Declarations (Without a Body)
+
+If `=` is omitted, the declaration is a signature only.
+
+```
+fn length : 'a list -> int
+fn head : 'a list -> 'a
+fn map~ : ('a ->~ 'b) -> 'a list ->~ 'b list
+```
+
+### 4.3 Block Expressions
+
+A block enclosed in `{}` contains multiple expressions. The value of the last expression becomes the value of the entire block. For a single expression, `{}` is unnecessary.
+
+Expressions inside a block are separated by **newlines**. If multiple expressions are written on one line, they are separated by a **semicolon `;`**. Semicolons and newlines are equivalent separators and may be mixed.
+
+```
+// Separated by newlines (basic style)
+fn printAndReturn! x = {
+  println! x
+  x
+}
+
+// Separated by semicolon (when writing multiple expressions on one line)
+fn printAndReturn! x = { println! x; x }
+```
+
+The scope of a `let` binding extends to the end of the enclosing block.
+
+```
+fn fizzbuzz n = {
+  fn go i =
+    if i > n then []
+    else {
+      let s =
+        match (i % 3, i % 5) {
+          | (0, 0) => "FizzBuzz"
+          | (0, _) => "Fizz"
+          | (_, 0) => "Buzz"
+          | _ => string_of_int i
+        }
+      s :: go (i + 1)
+    }
+  go 1
+}
+```
+
+### 4.4 Conditional Expressions (`if-then-else`)
+
+```
+if condition then when_true else when_false
+```
+
+```
+if x = [] then 0
+else 1 + length (List.tl x)
+```
+
+### 4.5 Pattern Matching (`match`)
+
+A `match` expression must always be enclosed in `{}`. Each pattern arm starts with `|`, and `=>` separates the pattern from the body.
+
+```
+match expr {
+  | pattern1 => expr1
+  | pattern2 => expr2
+  ...
+}
+```
+
+```
+match xs {
+  | [] => []
+  | y :: ys => f~ y :: map~ f~ ys
+}
+
+match (i % 3, i % 5) {
+  | (0, 0) => "FizzBuzz"
+  | (0, _) => "Fizz"
+  | (_, 0) => "Buzz"
+  | _ => string_of_int i
+}
+```
+
+#### 4.5.1 Patterns
+
+| Pattern | Description | Example |
+|---|---|---|
+| Literal | Matches a constant value | `0`, `"hello"` |
+| Variable | Matches any value and binds it | `x`, `rest` |
+| Wildcard | Matches any value without binding | `_` |
+| Constructor | Matches and destructures a variant constructor | `Some x`, `None`, `Leaf _` |
+| Record | Destructures record fields | `Point { x, y }`, `Point { x, .. }` |
+| Cons pattern | Decomposes a list into head and tail | `x :: xs`, `_ :: rest` |
+| Empty list | Matches the empty list | `[]` |
+| Tuple | Decomposes a tuple into its elements | `(0, 0)`, `(_, 0)` |
+
+#### 4.5.2 Shorthand When the Function Body Is Only a Pattern Match
+
+If a function body consists of a single `match` expression, the following shorthand may be used.
+
+```
+fn name = {
+  | pattern1 => expr1
+  | pattern2 => expr2
+}
+```
+
+In this case, the function implicitly takes one argument and pattern matches on that argument.
+
+```
+// The following two definitions are equivalent
+fn length x =
+  match x {
+    | [] => 0
+    | _ :: rest => 1 + length rest
+  }
+
+fn length = {
+  | [] => 0
+  | _ :: rest => 1 + length rest
+}
+```
+
+This form can also be combined with type annotations.
+
+```
+fn length : 'a list -> int = {
+  | [] => 0
+  | _ :: rest => 1 + length rest
+}
+```
+
+### 4.6 List Operations
+
+| Syntax | Description |
+|---|---|
+| `[]` | Empty list |
+| `[a, b, c]` | List literal |
+| `x :: xs` | Cons (prepend an element) |
+
+### 4.7 Operators
+
+| Operator | Description |
+|---|---|
+| `+`, `-`, `*`, `/` | Arithmetic |
+| `%` | Remainder |
+| `=` | Equality comparison |
+| `>`, `<`, `>=`, `<=` | Ordering comparison |
+
+### 4.8 Function Application
+
+Function application uses juxtaposition. Arguments are separated by spaces.
+
+```
+square 5
+add 1 2
+map square [1, 2, 3]
+println! "hello"
+```
+
+Parentheses are used for grouping.
+
+```
+1 + length (List.tl x)
+fold_left (fn a b -> a + b) 0 xs
+```
+
+## 5. Module System
+
+### 5.1 Module Definitions
+
+The `module` keyword defines a module. Subsequent definitions belong to that module.
+
+```
+module List
+fn length = { ... }
+fn head = { ... }
+
+module Main
+fn main! = { ... }
+```
+
+### 5.2 Module Access
+
+Values inside a module are accessed as `ModuleName.valueName`.
+
+```
+A.x
+List.tl x
+```
+
+### 5.3 import
+
+`import` brings a module's contents into the current scope, allowing the module-name prefix to be omitted.
+
+```
+module Main
+import List
+
+// You can write length instead of List.length
+let n = length [1, 2, 3]
+
+// List.length remains accessible as well
+let m = List.length [4, 5, 6]
+```
+
+## 6. Program Structure
+
+A wtml program consists of one or more module definitions. Each module contains type definitions, value bindings, function definitions, and function declarations.
+
+```
+module ModuleName
+  type definitions (variant types, record types)...
+  definitions (value bindings, function definitions, function declarations)...
+
+module ModuleName
+  type definitions (variant types, record types)...
+  definitions (value bindings, function definitions, function declarations)...
+```
+
+The conventional entry point for execution is the `main!` function in the `Main` module.
+
+## 7. Built-in Functions
+
+| Function | Type | Description |
+|---|---|---|
+| `println!` | `string ->! unit` | Prints a string followed by a newline |
+| `string_of_int` | `int -> string` | Converts an integer to a string |
+| `error` | `string -> 'a` | Raises an error |
+
+## 8. Complete Program Example
+
+```
+module List
+
+fn length : 'a list -> int
+fn head : 'a list -> 'a
+fn map~ : ('a ->~ 'b) -> 'a list ->~ 'b list
+
+fn length = {
+  | [] => 0
+  | _ :: rest => 1 + length rest
+}
+
+fn head = {
+  | [] => error "empty list"
+  | x :: _ => x
+}
+
+fn map~ f~ xs =
+  match xs {
+    | [] => []
+    | y :: ys => f~ y :: map~ f~ ys
+  }
+
+fn filter~ pred~ = {
+  | [] => []
+  | y :: ys =>
+    if pred~ y then y :: filter~ pred~ ys
+    else filter~ pred~ ys
+}
+
+fn fold_left f acc = {
+  | [] => acc
+  | y :: ys => fold_left f (f acc y) ys
+}
+
+module Main
+
+import List
+
+fn square x = x * x
+
+fn sum xs = fold_left (fn a b -> a + b) 0 xs
+
+fn print_all! xs =
+  map! (fn x -> { println! x; x }) xs
+
+fn fizzbuzz n = {
+  fn go i =
+    if i > n then []
+    else {
+      let s =
+        match (i % 3, i % 5) {
+          | (0, 0) => "FizzBuzz"
+          | (0, _) => "Fizz"
+          | (_, 0) => "Buzz"
+          | _ => string_of_int i
+        }
+      s :: go (i + 1)
+    }
+  go 1
+}
+
+fn main! = {
+  let nums = [1, 2, 3, 4, 5]
+  let squares = map square nums
+  let total = sum squares
+  println! total
+  print_all! (fizzbuzz 15)
+}
+```
+
+## Appendix A. Grammar (BNF-like)
+
+```
+program     ::= module_def+
+
+module_def  ::= 'module' UIDENT definition*
+
+definition  ::= let_def | fn_def | fn_decl | type_def | import_stmt
+
+let_def     ::= 'let' pattern (':' type)? '=' expr
+
+fn_def      ::= 'fn' IDENT_EFF param* (':' type)? '=' expr
+              | 'fn' IDENT_EFF (':' type)? '=' '{' match_arm+ '}'
+
+fn_decl     ::= 'fn' IDENT_EFF ':' type
+
+type_def    ::= 'type' IDENT TYVAR* '=' '{' variant_arm+ '}'
+              | 'type' IDENT TYVAR* '=' UIDENT '{' field_def (',' field_def)* ','? '}'
+
+variant_arm ::= '|' UIDENT type*
+
+field_def   ::= IDENT ':' type
+
+import_stmt ::= 'import' UIDENT
+
+param       ::= IDENT_EFF
+              | '(' IDENT_EFF ':' type ')'
+
+expr        ::= 'let' pattern (':' type)? '=' expr
+              | 'fn' param+ '->' expr
+              | 'if' expr 'then' expr 'else' expr
+              | 'match' expr '{' match_arm+ '}'
+              | '{' expr (sep expr)* '}'
+              | expr binop expr
+              | '#' expr                         (* debug expression *)
+              | '#' '{' expr (sep expr)* '}'    (* debug block *)
+              | expr expr                       (* function application *)
+              | expr '::' expr
+              | expr ':' type
+              | expr '.' IDENT                  (* field access *)
+              | UIDENT '.' IDENT_EFF
+              | UIDENT '{' field_init (',' field_init)* ','? '}'   (* record construction *)
+              | '{' expr 'with' field_init (',' field_init)* ','? '}'  (* record update *)
+              | UIDENT expr*                    (* constructor application *)
+              | '(' expr (',' expr)* ')'
+              | '[' (expr (',' expr)*)? ']'
+              | literal
+              | IDENT_EFF
+
+field_init  ::= IDENT '=' expr
+
+match_arm   ::= '|' pattern '=>' expr
+
+pattern     ::= '_'
+              | IDENT
+              | literal
+              | '[]'
+              | UIDENT pattern*                 (* constructor pattern *)
+              | UIDENT '{' field_pat (',' field_pat)* ','? '}'     (* record pattern *)
+              | UIDENT '{' field_pat (',' field_pat)* ',' '..' '}' (* partial record pattern *)
+              | pattern '::' pattern
+              | '(' pattern (',' pattern)* ')'
+
+field_pat   ::= IDENT                           (* field name only: binds to a variable of the same name *)
+              | IDENT ':' pattern               (* field name: pattern *)
+
+type        ::= base_type
+              | type arrow type
+              | type IDENT                      (* type application: 'a list *)
+              | IDENT type+                     (* prefix type application: option 'a *)
+              | '(' type (',' type)* ')'
+              | TYVAR
+
+arrow       ::= '->' | '->!' | '->~'
+
+base_type   ::= 'int' | 'float' | 'char' | 'string' | 'bool' | 'unit'
+
+IDENT       ::= [a-z_][a-zA-Z0-9_]*
+IDENT_EFF   ::= IDENT ('!' | '~')?
+UIDENT      ::= [A-Z][a-zA-Z0-9_]*
+TYVAR       ::= "'" IDENT
+literal     ::= INT | FLOAT | CHAR | STRING | 'true' | 'false' | '()'
+binop       ::= '+' | '-' | '*' | '/' | '%' | '=' | '>' | '<' | '>=' | '<='
+sep         ::= NEWLINE | ';'               (* expression separator: newline or semicolon *)
+```
+
+`IDENT_EFF` appears syntactically as a single identifier, but effect suffixes do not introduce separate bindings. `f`, `f!`, and `f~` are different notations for referring to the same function binding in different effect modes, and the permitted forms are determined by that binding's effect type.
+
+Record types are nominal. Even if `point` and `vec2` have the same field structure, they are not compatible as long as they come from different type definitions or use different constructors.
+
+## Appendix B. Effect-Type Subtyping Diagram
+
+```
+        ->~
+       /   \
+      /     \
+    ->      ->!
+     \     /
+      \   /
+   compile error
+   (conversion from ->! to -> is not allowed)
+```
+
+`->~` is a supertype of both `->` and `->!`. Between `->` and `->!`, only the implicit conversion from `->` to `->!` is allowed (not the reverse).
+
+---
+
 # wtml 言語仕様書
 
 バージョン: 0.1（ドラフト）
