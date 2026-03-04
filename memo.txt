@@ -97,6 +97,8 @@ map~ someFunction~ [1,2,3]
 // fn は無名関数としても使える
 // let で値に束縛する
 let double = fn x -> x * 2
+let printAndReturn = fn! x -> { println! x; x }
+let mapper = fn~ f~ xs -> map~ f~ xs
 
 ---
 
@@ -109,9 +111,14 @@ let double = fn x -> x * 2
 //
 // 型の例
 fn square : int -> int
-fn println! : string ->! unit
+fn println! : 'a ->! unit
 fn printAndReturn! : 'a ->! 'a
 fn map~ : ('a ->~ 'b) -> 'a list ->~ 'b list
+
+// 無名関数にも副作用サフィックスをつけられる
+//   fn   純粋
+//   fn!  副作用あり
+//   fn~  副作用ポリモーフィック
 
 // サブタイピング（互換性）
 //   ->  <: ->!   純粋な関数は副作用ありの場所に渡せる
@@ -168,9 +175,9 @@ fn filter~ pred~ = {
     else filter~ pred~ ys
 }
 
-fn fold_left f acc = {
+fn fold_left~ f~ acc = {
   | [] => acc
-  | y :: ys => fold_left f (f acc y) ys
+  | y :: ys => fold_left~ f~ (f~ acc y) ys
 }
 
 module Main
@@ -182,7 +189,7 @@ fn square x = x * x
 fn sum xs = fold_left (fn a b -> a + b) 0 xs
 
 fn print_all! xs =
-  map! (fn x -> { println! x; x }) xs
+  map! (fn! x -> { println! x; x }) xs
 
 fn fizzbuzz n = {
   fn go i =
@@ -207,4 +214,3 @@ fn main! = {
   println! total
   print_all! (fizzbuzz 15)
 }
-

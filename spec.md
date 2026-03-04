@@ -460,13 +460,25 @@ fn length (x : 'a list) : int =
 
 ```
 fn args... -> body
+fn! args... -> body
+fn~ args... -> body
 ```
 
 ```
 let double = fn x -> x * 2
+let print_and_return = fn! x -> { println! x; x }
+let mapper = fn~ f~ xs -> map~ f~ xs
 let add = fn a b -> a + b
 map (fn x -> x * x) [1, 2, 3]
 ```
+
+Anonymous functions follow the same effect-suffix rules as named functions.
+
+- `fn` is pure
+- `fn!` is effectful
+- `fn~` is effect-polymorphic
+
+The suffix must match the behavior of the body.
 
 #### 4.2.3 Function Declarations (Without a Body)
 
@@ -695,7 +707,7 @@ The conventional entry point for execution is the `main!` function in the `Main`
 
 | Function | Type | Description |
 |---|---|---|
-| `println!` | `string ->! unit` | Prints a string followed by a newline |
+| `println!` | `'a ->! unit` | Prints a value followed by a newline |
 | `string_of_int` | `int -> string` | Converts an integer to a string |
 | `error` | `string -> 'a` | Raises an error |
 
@@ -731,9 +743,9 @@ fn filter~ pred~ = {
     else filter~ pred~ ys
 }
 
-fn fold_left f acc = {
+fn fold_left~ f~ acc = {
   | [] => acc
-  | y :: ys => fold_left f (f acc y) ys
+  | y :: ys => fold_left~ f~ (f~ acc y) ys
 }
 
 module Main
@@ -745,7 +757,7 @@ fn square x = x * x
 fn sum xs = fold_left (fn a b -> a + b) 0 xs
 
 fn print_all! xs =
-  map! (fn x -> { println! x; x }) xs
+  map! (fn! x -> { println! x; x }) xs
 
 fn fizzbuzz n = {
   fn go i =
@@ -801,7 +813,7 @@ param       ::= IDENT_EFF
               | '(' IDENT_EFF ':' type ')'
 
 expr        ::= 'let' pattern (':' type)? '=' expr
-              | 'fn' param+ '->' expr
+              | 'fn' lambda_eff? param+ '->' expr
               | 'if' expr 'then' expr 'else' expr
               | 'match' expr '{' match_arm+ '}'
               | '{' expr (sep expr)* '}'
@@ -846,6 +858,8 @@ type        ::= base_type
               | TYVAR
 
 arrow       ::= '->' | '->!' | '->~'
+
+lambda_eff  ::= '!' | '~'
 
 base_type   ::= 'int' | 'float' | 'char' | 'string' | 'bool' | 'unit'
 
@@ -1341,13 +1355,25 @@ fn length (x : 'a list) : int =
 
 ```
 fn 引数... -> 本体
+fn! 引数... -> 本体
+fn~ 引数... -> 本体
 ```
 
 ```
 let double = fn x -> x * 2
+let print_and_return = fn! x -> { println! x; x }
+let mapper = fn~ f~ xs -> map~ f~ xs
 let add = fn a b -> a + b
 map (fn x -> x * x) [1, 2, 3]
 ```
+
+無名関数も名前付き関数と同じ副作用サフィックス規則に従う。
+
+- `fn` は純粋
+- `fn!` は副作用あり
+- `fn~` は副作用ポリモーフィック
+
+サフィックスは本体の性質と一致しなければならない。
 
 #### 4.2.3 関数宣言（本体なし）
 
@@ -1576,7 +1602,7 @@ module モジュール名
 
 | 関数 | 型 | 説明 |
 |---|---|---|
-| `println!` | `string ->! unit` | 文字列を出力して改行 |
+| `println!` | `'a ->! unit` | 値を出力して改行 |
 | `string_of_int` | `int -> string` | 整数を文字列に変換 |
 | `error` | `string -> 'a` | エラーを発生させる |
 
@@ -1612,9 +1638,9 @@ fn filter~ pred~ = {
     else filter~ pred~ ys
 }
 
-fn fold_left f acc = {
+fn fold_left~ f~ acc = {
   | [] => acc
-  | y :: ys => fold_left f (f acc y) ys
+  | y :: ys => fold_left~ f~ (f~ acc y) ys
 }
 
 module Main
@@ -1626,7 +1652,7 @@ fn square x = x * x
 fn sum xs = fold_left (fn a b -> a + b) 0 xs
 
 fn print_all! xs =
-  map! (fn x -> { println! x; x }) xs
+  map! (fn! x -> { println! x; x }) xs
 
 fn fizzbuzz n = {
   fn go i =
@@ -1682,7 +1708,7 @@ param       ::= IDENT_EFF
               | '(' IDENT_EFF ':' type ')'
 
 expr        ::= 'let' pattern (':' type)? '=' expr
-              | 'fn' param+ '->' expr
+              | 'fn' lambda_eff? param+ '->' expr
               | 'if' expr 'then' expr 'else' expr
               | 'match' expr '{' match_arm+ '}'
               | '{' expr (sep expr)* '}'
@@ -1727,6 +1753,8 @@ type        ::= base_type
               | TYVAR
 
 arrow       ::= '->' | '->!' | '->~'
+
+lambda_eff  ::= '!' | '~'
 
 base_type   ::= 'int' | 'float' | 'char' | 'string' | 'bool' | 'unit'
 
