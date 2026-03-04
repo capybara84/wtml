@@ -53,6 +53,8 @@ fn add x y = x + y
 
 // anonymous function
 let double = fn x -> x * 2
+let print_and_return = fn! x -> { println! x; x }
+let mapper = fn~ f~ xs -> map~ f~ xs
 
 // type annotation (optional)
 fn length (xs : 'a list) : int = ...
@@ -88,6 +90,8 @@ let x = head [1, 2, 3]
 ```
 
 ## Example
+
+The following example assumes standard-library-style helpers such as `map~`, `fold_left~`, and `print_all!`. At pure call sites they may appear as `map` or `fold_left`.
 
 ```
 module Main
@@ -204,6 +208,8 @@ fn add x y = x + y
 
 // 無名関数
 let double = fn x -> x * 2
+let print_and_return = fn! x -> { println! x; x }
+let mapper = fn~ f~ xs -> map~ f~ xs
 
 // 型注釈（省略可能）
 fn length (xs : 'a list) : int = ...
@@ -239,6 +245,8 @@ let x = head [1, 2, 3]
 ```
 
 ## コード例
+
+以下の例では、`map~`、`fold_left~`、`print_all!` のような標準ライブラリ相当の関数があるものとします。純粋な呼び出し位置では `map` や `fold_left` の形で現れます。
 
 ```
 module Main
